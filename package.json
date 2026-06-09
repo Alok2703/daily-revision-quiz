@@ -1,0 +1,15 @@
+{
+  "name": "daily-revision-quiz",
+  "version": "1.0.0",
+  "description": "Year 8 adaptive revision quiz - Maths & Science MCQs with auto-scoring",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
