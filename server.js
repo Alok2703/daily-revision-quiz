@@ -100,19 +100,19 @@ app.get("/", (req, res) => {
     .btn:hover { background: #5a6fd6; }
     .weak { background: #fff3cd; border-radius: 8px; padding: 10px; margin-bottom: 15px; color: #856404; text-align: center; }
   </style></head><body><div class="container">
-  <div class="header"><h1>\ud83d\udcda Daily Revision Quiz</h1><p>Year 8 \u2014 Maths & Science</p></div>`;
+  <div class="header"><h1>Daily Revision Quiz</h1><p>Year 8 - Maths & Science</p></div>`;
 
   if (lastScore !== null) {
-    html += `<div class="stats">\ud83d\udcca Last Score: <strong>${lastScore}%</strong></div>`;
+    html += `<div class="stats">Last Score: <strong>${lastScore}%</strong></div>`;
   }
   if (weakTopics) {
-    html += `<div class="weak">\u26a0\ufe0f Focus areas today: <strong>${weakTopics.map(t => t.replace("_", " \u2192 ")).join(", ")}</strong></div>`;
+    html += `<div class="weak">Focus areas today: <strong>${weakTopics.map(t => t.replace("_", " > ")).join(", ")}</strong></div>`;
   }
 
   html += `<form method="POST" action="/submit">`;
 
   quiz.forEach((q, i) => {
-    const topicLabel = q.topic.replace("_", " \u2192 ").replace(/^\w/, c => c.toUpperCase());
+    const topicLabel = q.topic.replace("_", " > ").replace(/^\w/, c => c.toUpperCase());
     html += `<div class="card">
       <span class="topic-tag">${topicLabel}</span>
       <h3>Q${i + 1}.</h3>
@@ -126,7 +126,7 @@ app.get("/", (req, res) => {
   });
 
   html += `<input type="hidden" name="total" value="${quiz.length}">
-    <button class="btn" type="submit">\u2705 Submit Answers</button></form></div></body></html>`;
+    <button class="btn" type="submit">Submit Answers</button></form></div></body></html>`;
 
   res.send(html);
 });
@@ -159,6 +159,16 @@ app.post("/submit", (req, res) => {
 
   saveResult({ date, correct, total, totalPercent, topicScores });
 
+  // Personalized motivation for Aakhya
+  let motivationMsg;
+  if (totalPercent === 100) motivationMsg = "Aakhya you are AMAZING! 100% - Perfect score! You're a genius!";
+  else if (totalPercent >= 90) motivationMsg = "Aakhya you are BRILLIANT! Keep shining, you're almost perfect!";
+  else if (totalPercent >= 80) motivationMsg = "Aakhya you are GREAT! Fantastic effort, keep pushing!";
+  else if (totalPercent >= 70) motivationMsg = "Aakhya, well done! You're getting stronger every day!";
+  else if (totalPercent >= 60) motivationMsg = "Aakhya, good effort! A little more practice and you'll smash it!";
+  else if (totalPercent >= 50) motivationMsg = "Aakhya, don't give up! You're learning and that's what matters!";
+  else motivationMsg = "Aakhya, keep trying! Every mistake is a step towards success!";
+
   let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Quiz Result</title>
   <style>
@@ -167,7 +177,7 @@ app.post("/submit", (req, res) => {
     .container { max-width: 600px; margin: 0 auto; text-align: center; }
     .result-card { background: white; border-radius: 16px; padding: 40px; margin-top: 40px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
     .score { font-size: 4em; font-weight: bold; color: ${totalPercent >= 70 ? "#11998e" : totalPercent >= 50 ? "#f39c12" : "#e74c3c"}; }
-    .msg { font-size: 1.3em; margin: 15px 0; color: #333; }
+    .motivation { font-size: 1.3em; margin: 20px 0; color: #2d2d2d; font-weight: bold; background: linear-gradient(135deg, #667eea22, #764ba222); padding: 15px; border-radius: 10px; }
     .topics { text-align: left; margin-top: 20px; }
     .topic-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
     .topic-name { color: #555; }
@@ -177,17 +187,27 @@ app.post("/submit", (req, res) => {
     .btn { display: inline-block; padding: 12px 30px; background: #11998e; color: white; border-radius: 8px; text-decoration: none; margin-top: 25px; font-size: 1.1em; }
   </style></head><body><div class="container"><div class="result-card">
     <div class="score">${totalPercent}%</div>
-    <div class="msg">${totalPercent >= 80 ? "\ud83c\udf1f Excellent work!" : totalPercent >= 60 ? "\ud83d\udc4d Good job! Keep improving!" : "\ud83d\udcaa Keep practicing, you'll get there!"}</div>
+    <div class="motivation">${motivationMsg}</div>
     <p>${correct} out of ${total} correct</p>
     <div class="topics"><h3 style="margin:15px 0">Topic Breakdown:</h3>`;
 
+  const weakAreas = [];
   for (const [topic, data] of Object.entries(topicScores)) {
-    const label = topic.replace("_", " \u2192 ").replace(/^\w/, c => c.toUpperCase());
+    const label = topic.replace("_", " > ").replace(/^\w/, c => c.toUpperCase());
     const cls = data.percent >= 60 ? "good" : "weak";
+    if (data.percent < 60) weakAreas.push(label);
     html += `<div class="topic-row"><span class="topic-name">${label}</span><span class="topic-score ${cls}">${data.correct}/${data.total} (${data.percent}%)</span></div>`;
   }
 
-  html += `</div><a class="btn" href="/">\ud83d\udd04 Try Again</a></div></div></body></html>`;
+  html += `</div>`;
+
+  if (weakAreas.length) {
+    html += `<div style="background:#fff3cd;border-radius:10px;padding:15px;margin-top:20px;text-align:left;color:#856404;"><h3>Aakhya, let's improve these topics:</h3><ul style="margin:8px 0 8px 20px;">${weakAreas.map(t => `<li style="margin:4px 0;font-weight:bold;">${t}</li>`).join("")}</ul><p style="font-style:italic;margin-top:8px;">Revise these tonight and try again tomorrow - you'll see the difference!</p></div>`;
+  } else {
+    html += `<div style="background:#d4edda;border-radius:10px;padding:15px;margin-top:20px;text-align:center;color:#155724;"><h3>Aakhya, you smashed every topic! Nothing to improve - you're on fire!</h3></div>`;
+  }
+
+  html += `<a class="btn" href="/">Try Again</a></div></div></body></html>`;
 
   res.send(html);
 });
