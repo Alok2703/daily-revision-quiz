@@ -72,14 +72,15 @@ async function callGemini(prompt) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" }
+    }),
   });
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  // Extract JSON from response
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) throw new Error("No JSON array in Gemini response");
-  return JSON.parse(jsonMatch[0]);
+  if (!text) throw new Error("Empty Gemini response");
+  return JSON.parse(text);
 }
 
 function getTodayKey() {
@@ -128,7 +129,6 @@ Return ONLY a JSON array with this exact format, no other text:
   } catch (err) {
     console.error("❌ Gemini Year 8 generation failed:", err.message);
   }
-  // Fallback to stored questions
   const fallback = require("./questions");
   return generateFallbackQuiz(fallback, 18);
 }
@@ -165,7 +165,6 @@ Return ONLY a JSON array with this exact format, no other text:
   } catch (err) {
     console.error("❌ Gemini Year 3 generation failed:", err.message);
   }
-  // Fallback to stored questions
   const fallback = require("./year3_questions");
   return generateFallbackQuiz(fallback, 22);
 }
