@@ -68,6 +68,7 @@ console.log("📧 Email cron scheduled: daily at 07:00 UTC");
 
 // ============== GEMINI AI QUESTION GENERATION ==============
 async function callGemini(prompt) {
+  if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not set");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
   const res = await fetch(url, {
     method: "POST",
@@ -78,8 +79,12 @@ async function callGemini(prompt) {
     }),
   });
   const data = await res.json();
+  if (data.error) throw new Error(`Gemini API error: ${data.error.message}`);
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  if (!text) throw new Error("Empty Gemini response");
+  if (!text) {
+    console.error("Gemini raw response:", JSON.stringify(data).slice(0, 500));
+    throw new Error("Empty Gemini response");
+  }
   return JSON.parse(text);
 }
 
@@ -480,7 +485,28 @@ app.get("/send-emails", async (req, res) => {
   res.send("✅ Emails sent!");
 });
 
+// Debug endpoint to test Gemini key
+app.get("/test-gemini", async (req, res) => {
+  if (!GEMINI_API_KEY) return res.send("❌ GEMINI_API_KEY not set");
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Say hello in JSON format: {\"message\": \"hello\"}" }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      }),
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (err) {
+    res.send("❌ Error: " + err.message);
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`\n\ud83d\udcda Quiz server running at http://localhost:${PORT}`);
   console.log(`   AI-powered questions via Google Gemini`);
+  console.log(`   GEMINI_API_KEY: ${GEMINI_API_KEY ? "SET (" + GEMINI_API_KEY.slice(0,4) + "...)" : "NOT SET"}`);
 });
