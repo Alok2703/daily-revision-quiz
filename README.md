@@ -3,7 +3,7 @@
 Year 8 adaptive revision quiz for Maths & Science.
 
 ## Topics
-- **Maths:** Algebra, Bearings, Compound Shapes, Circles, Angles, Probability, Percentages
+- **Maths:** Algebra, Bearings, Compound Shapes, Circles, Angles, Probability,  Percentages
 - **Science:** Forces, Electromagnetism, Work Done, Periodic Table, Chemical Reactions
 
 ## Features
