@@ -1,0 +1,13 @@
+name: Daily Quiz Email
+
+on:
+  schedule:
+    - cron: '0 10 * * *'  # 10:00 UTC = 11:00 AM BST
+  workflow_dispatch:  # allows manual trigger from GitHub UI if needed
+
+jobs:
+  send-email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger daily email
+        run: curl -s https://daily-revision-quiz.onrender.com/send-emails

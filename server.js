@@ -1,6 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { google } = require("googleapis");
 
 const app = express();
 app.use(express.json());
@@ -10,6 +11,52 @@ const CONFIG_PATH = path.join(__dirname, "config.json");
 const RESULTS_PATH = path.join(__dirname, "results.json");
 const YEAR3_RESULTS_PATH = path.join(__dirname, "year3_results.json");
 const PORT = process.env.PORT || 3000;
+
+// ============== EMAIL CONFIG ==============
+const TO_EMAIL = "alok.singhal2703@gmail.com";
+const QUIZ_URL = "https://daily-revision-quiz.onrender.com";
+
+function getGmailAuth() {
+  const credentials = JSON.parse(process.env.GMAIL_CREDENTIALS || "{}");
+  const token = JSON.parse(process.env.GMAIL_TOKEN || "{}");
+  if (!credentials.installed && !credentials.web) return null;
+  const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+  oAuth2Client.setCredentials(token);
+  return oAuth2Client;
+}
+
+async function sendEmail(subject, body) {
+  const auth = getGmailAuth();
+  if (!auth) { console.error("❌ Gmail credentials not configured"); return false; }
+  const gmail = google.gmail({ version: "v1", auth });
+  const message = [
+    `To: ${TO_EMAIL}`,
+    `Subject: =?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`,
+    `Content-Type: text/plain; charset=utf-8`,
+    `Content-Transfer-Encoding: base64`,
+    "",
+    Buffer.from(body).toString("base64"),
+  ].join("\r\n");
+  const encodedMessage = Buffer.from(message).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  try {
+    await gmail.users.messages.send({ userId: "me", requestBody: { raw: encodedMessage } });
+    console.log(`✅ Email sent: ${subject}`);
+    return true;
+  } catch (err) {
+    console.error("❌ Failed to send email:", err.message);
+    return false;
+  }
+}
+
+async function sendDailyEmails() {
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const config = getConfig();
+  const body1 = `\n📚 DAILY REVISION - ${today}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n🎯 ${config.year8.name}'s Quiz: ${QUIZ_URL}/\n(${config.year8.questionsPerQuiz} MCQs - AI Generated!)\n\n🎯 ${config.year3.name}'s Quiz: ${QUIZ_URL}/year3\n(${config.year3.questionsPerQuiz} MCQs - AI Generated!)\n\n💡 Fresh questions every day!\nGood luck! 🚀\n`;
+  await sendEmail(`📚 Daily Revision - ${today}`, body1);
+}
+
+
 
 function getConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
@@ -314,6 +361,12 @@ app.get("/year3/history", (req, res) => res.json(getYear3Results()));
 app.get("/config", (req, res) => {
   const config = getConfig();
   res.json({ year8: { ...config.year8 }, year3: { ...config.year3 } });
+});
+
+// Manual email trigger
+app.get("/send-emails", async (req, res) => {
+  await sendDailyEmails();
+  res.send("✅ Emails sent!");
 });
 
 app.listen(PORT, () => {
