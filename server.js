@@ -202,17 +202,40 @@ function renderResultPage(correct, total, topicScores, yearKey, config) {
 
 // ---- ROUTES ----
 
+// Loading page HTML
+function loadingPage(title, subtitle, gradientBg, loadUrl) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: ${gradientBg}; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .loader { text-align: center; color: white; }
+    .loader h1 { font-size: 2em; margin-bottom: 15px; }
+    .loader p { font-size: 1.2em; opacity: 0.9; }
+    .spinner { margin: 20px auto; width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style></head><body>
+  <div class="loader"><h1>${title}</h1><p>${subtitle}</p><div class="spinner"></div><p>Generating your quiz...</p></div>
+  <script>window.location.href='${loadUrl}';</script>
+  </body></html>`;
+}
+
 // Year 8 quiz
-app.get("/", async (req, res) => {
+app.get("/", (req, res) => {
+  res.send(loadingPage("📚 Daily Revision Quiz", "Year 8 — Aakhya", "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", "/generate?year=year8"));
+});
+
+app.get("/generate", async (req, res) => {
+  const yearKey = req.query.year || "year8";
   try {
     const config = getConfig();
-    const results = getResults();
+    const results = yearKey === "year8" ? getResults() : getYear3Results();
     const lastScore = results.length ? results[results.length - 1].totalPercent : null;
-    const quiz = await generateQuestionsFromGemini("year8");
-    res.send(renderQuizPage(quiz, "year8", lastScore, config));
+    const quiz = await generateQuestionsFromGemini(yearKey);
+    res.send(renderQuizPage(quiz, yearKey, lastScore, config));
   } catch (err) {
-    console.error("Error generating Year 8 quiz:", err.message);
-    res.status(500).send(`<h1>Error generating quiz</h1><p>${err.message}</p><p>Check your Gemini API key in config.json</p>`);
+    console.error(`Error generating ${yearKey} quiz:`, err.message);
+    res.status(500).send(`<h1>Error generating quiz</h1><p>${err.message}</p><p>Check your GEMINI_API_KEY environment variable</p>`);
   }
 });
 
@@ -248,17 +271,8 @@ app.post("/submit", (req, res) => {
 });
 
 // Year 3 quiz
-app.get("/year3", async (req, res) => {
-  try {
-    const config = getConfig();
-    const results = getYear3Results();
-    const lastScore = results.length ? results[results.length - 1].totalPercent : null;
-    const quiz = await generateQuestionsFromGemini("year3");
-    res.send(renderQuizPage(quiz, "year3", lastScore, config));
-  } catch (err) {
-    console.error("Error generating Year 3 quiz:", err.message);
-    res.status(500).send(`<h1>Error generating quiz</h1><p>${err.message}</p><p>Check your Gemini API key in config.json</p>`);
-  }
+app.get("/year3", (req, res) => {
+  res.send(loadingPage("📝 Year 3 Test", "Year 3 — Kahaan", "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)", "/generate?year=year3"));
 });
 
 app.post("/year3/submit", (req, res) => {
