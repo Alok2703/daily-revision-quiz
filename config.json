@@ -1,0 +1,19 @@
+{
+  "year8": {
+    "name": "Aakhya",
+    "questionsPerQuiz": 25,
+    "subjects": {
+      "maths": ["Algebra", "Bearings", "Compound Shapes", "Circles", "Angles", "Probability", "Percentages"],
+      "science": ["Photosynthesis","Cells","Displacement reaction","Oxidation","Combustion","Forces","Thermal decomposition", "Electromagnetism", "Work Done", "Periodic Table", "Chemical Reactions"]
+    }
+  },
+  "year3": {
+    "name": "Kahaan",
+    "questionsPerQuiz": 25,
+    "subjects": {
+      "maths": ["Addition", "Subtraction", "Multiplication", "Division"],
+      "english": ["Spelling", "Punctuation", "Conjunctions","Prepositions","Adjectives", "Adverbs", "Nouns", "Verbs and Tenses"],
+      "science": ["Plants"]
+    }
+  }
+}
