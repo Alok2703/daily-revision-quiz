@@ -94,7 +94,7 @@ Return ONLY a valid JSON array with no extra text. Each object must have:
 
 Make questions age-appropriate for ${userConfig.year}. Mix easy and medium difficulty. No duplicate questions.`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
   
   // Retry logic for quota exceeded errors
   for (let attempt = 1; attempt <= 3; attempt++) {
