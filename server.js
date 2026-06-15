@@ -74,7 +74,22 @@ async function generateQuestionsFromGemini(userName) {
   if (!userConfig) throw new Error(`User ${userName} not found in config`);
   
   const totalQuestions = userConfig.questionsPerQuiz;
+  
+  // First try to use pre-generated questions as fallback
+  try {
+    const fallbackQuestions = generateFallbackQuestions(userName, totalQuestions);
+    if (fallbackQuestions && fallbackQuestions.length >= totalQuestions) {
+      console.log(`Using fallback questions for ${userName}`);
+      return fallbackQuestions.slice(0, totalQuestions);
+    }
+  } catch (err) {
+    console.log('Fallback questions failed, trying Gemini...');
+  }
+  
   const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY not found, using fallback questions');
+  }
 
   const topicsList = Object.entries(userConfig.subjects)
     .map(([subject, topics]) => `${subject}: ${topics.join(", ")}`)
@@ -112,20 +127,64 @@ Make questions age-appropriate for ${userConfig.year}. Mix easy and medium diffi
         continue;
       }
 
-      if (!resp.ok) throw new Error(`Gemini API error: ${resp.status} ${await resp.text()}`);
+      if (!resp.ok) {
+        console.log(`Gemini API failed: ${resp.status}, falling back to pre-generated questions`);
+        return generateFallbackQuestions(userName, totalQuestions);
+      }
 
       const data = await resp.json();
       const text = data.candidates[0].content.parts[0].text;
 
       const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) throw new Error("Failed to parse Gemini response");
+      if (!jsonMatch) {
+        console.log('Failed to parse Gemini response, using fallback');
+        return generateFallbackQuestions(userName, totalQuestions);
+      }
 
       return JSON.parse(jsonMatch[0]).slice(0, totalQuestions);
     } catch (err) {
-      if (attempt === 3) throw err;
+      if (attempt === 3) {
+        console.log(`All Gemini attempts failed, using fallback questions: ${err.message}`);
+        return generateFallbackQuestions(userName, totalQuestions);
+      }
       console.log(`⚠️ Attempt ${attempt} failed: ${err.message}`);
     }
   }
+}
+
+// Fallback function to generate questions from pre-existing question bank
+function generateFallbackQuestions(userName, totalQuestions) {
+  const config = getConfig();
+  const userConfig = config[userName];
+  if (!userConfig) throw new Error(`User ${userName} not found in config`);
+  
+  // Import the questions bank
+  const questionsBank = require('./questions.js');
+  
+  const allQuestions = [];
+  
+  // Collect questions from all subjects/topics
+  for (const [subject, topics] of Object.entries(userConfig.subjects)) {
+    for (const topic of topics) {
+      const topicKey = topic.toLowerCase().replace(/\s+/g, '_');
+      if (questionsBank[subject] && questionsBank[subject][topicKey]) {
+        const topicQuestions = questionsBank[subject][topicKey].map(q => ({
+          ...q,
+          subject: subject,
+          topic: topic
+        }));
+        allQuestions.push(...topicQuestions);
+      }
+    }
+  }
+  
+  if (allQuestions.length === 0) {
+    throw new Error('No fallback questions available');
+  }
+  
+  // Shuffle and select questions
+  const shuffled = allQuestions.sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, totalQuestions);
 }
 
 // ---- Results helpers ----
