@@ -26,6 +26,33 @@ function getGmailAuth() {
 }
 
 async function sendEmail(toEmail, subject, body) {
+  // Try App Password method first (simpler and more reliable)
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    try {
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransporter({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD
+        }
+      });
+
+      await transporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to: toEmail,
+        subject: subject,
+        text: body
+      });
+
+      console.log(`✅ Email sent to ${toEmail}: ${subject}`);
+      return true;
+    } catch (err) {
+      console.error(`❌ App Password method failed for ${toEmail}:`, err.message);
+    }
+  }
+
+  // Fallback to OAuth method
   const auth = getGmailAuth();
   if (!auth) { console.error("❌ Gmail credentials not configured"); return false; }
   const gmail = google.gmail({ version: "v1", auth });
@@ -317,7 +344,26 @@ function renderQuizPage(quiz, userName, lastScore, config) {
   });
 
   html += `<input type="hidden" name="total" value="${quiz.length}">
-    <button class="btn" type="submit">✅ Submit Answers</button></form></div></body></html>`;
+    <button class="btn" type="submit">✅ Submit Answers</button></form></div>
+    <script>
+      document.querySelector('form').addEventListener('submit', function(e) {
+        var totalQuestions = ${quiz.length};
+        var answeredCount = 0;
+        for (var i = 0; i < totalQuestions; i++) {
+          if (document.querySelectorAll('input[name="q' + i + '"]:checked').length > 0) {
+            answeredCount++;
+          }
+        }
+        if (answeredCount < totalQuestions) {
+          e.preventDefault();
+          alert('Please answer all questions! You answered ' + answeredCount + ' out of ' + totalQuestions);
+          return false;
+        }
+        var submitBtn = document.querySelector('.btn');
+        submitBtn.textContent = 'Submitting...';
+        submitBtn.disabled = true;
+      });
+    </script></body></html>`;
 
   return html;
 }
@@ -509,6 +555,224 @@ app.post("/submit/:userName", (req, res) => {
   }
 
   res.send(renderResultPage(correct, total, topicScores, userName, config));
+});
+
+// ============== REGISTER PAGE ==============
+app.get("/register", (req, res) => {
+  let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QuizBot - Daily Revision for Kids</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Poppins', sans-serif; background: #0f0c29; min-height: 100vh; padding: 20px; position: relative; overflow-x: hidden; }
+    body::before { content: ''; position: fixed; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 30% 50%, rgba(102, 126, 234, 0.15) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(118, 75, 162, 0.1) 0%, transparent 50%); animation: bgFloat 20s ease-in-out infinite; z-index: 0; }
+    @keyframes bgFloat { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-2%, -2%); } }
+    .container { max-width: 650px; margin: 0 auto; position: relative; z-index: 1; }
+    .header { text-align: center; color: white; margin-bottom: 35px; padding-top: 20px; }
+    .header .logo { font-size: 3.5em; margin-bottom: 10px; animation: bounce 2s ease-in-out infinite; }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .header h1 { font-size: 2.2em; font-weight: 700; margin-bottom: 8px; background: linear-gradient(135deg, #667eea, #764ba2, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .header p { opacity: 0.8; font-size: 1.05em; color: #b8c5e8; }
+    .features { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 30px; }
+    .feature { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 15px 10px; text-align: center; color: white; }
+    .feature .icon { font-size: 1.8em; margin-bottom: 5px; }
+    .feature .text { font-size: 0.75em; color: #b8c5e8; }
+    .card { background: rgba(255,255,255,0.97); border-radius: 20px; padding: 35px; box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
+    .field { margin-bottom: 22px; }
+    .field > label { display: block; font-weight: 600; color: #1a1a2e; margin-bottom: 8px; font-size: 0.9em; letter-spacing: 0.3px; }
+    .field input[type="text"], .field input[type="email"], .field input[type="number"], .field select { width: 100%; padding: 14px 16px; border: 2px solid #e8ecf4; border-radius: 12px; font-size: 1em; font-family: 'Poppins', sans-serif; transition: all 0.3s; background: #f8fafc; }
+    .field input:focus, .field select:focus { border-color: #667eea; outline: none; background: white; box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1); }
+    .field input::placeholder { color: #a0aec0; }
+    .topics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .topics-grid label { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 2px solid #e8ecf4; border-radius: 10px; cursor: pointer; font-size: 0.88em; transition: all 0.2s; font-weight: 500; }
+    .topics-grid label:hover { border-color: #667eea; background: #f0f0ff; transform: translateY(-1px); }
+    .topics-grid input[type="checkbox"] { width: 18px; height: 18px; accent-color: #667eea; }
+    .subject-header { font-weight: 700; color: #667eea; margin: 18px 0 10px; font-size: 0.95em; display: flex; align-items: center; gap: 6px; }
+    .btn { display: block; width: 100%; padding: 18px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 14px; font-size: 1.15em; font-weight: 600; cursor: pointer; margin-top: 28px; font-family: 'Poppins', sans-serif; transition: all 0.3s; box-shadow: 0 8px 25px rgba(102, 126, 234, 0.35); }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 12px 35px rgba(102, 126, 234, 0.5); }
+    .btn:active { transform: translateY(0); }
+    .note { background: linear-gradient(135deg, #f0f4ff, #e8ecff); border-radius: 12px; padding: 16px; margin-top: 20px; color: #4a5568; font-size: 0.85em; border: 1px solid #e2e8f0; line-height: 1.5; }
+    .frequency-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .freq-option { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 2px solid #e8ecf4; border-radius: 10px; cursor: pointer; transition: all 0.2s; font-size: 0.88em; font-weight: 500; }
+    .freq-option:hover { border-color: #667eea; background: #f0f0ff; }
+    .freq-option input[type="radio"] { width: 18px; height: 18px; accent-color: #667eea; }
+    .divider { height: 1px; background: linear-gradient(to right, transparent, #e2e8f0, transparent); margin: 25px 0; }
+    @media (max-width: 500px) { .features { grid-template-columns: 1fr; } .topics-grid, .frequency-options { grid-template-columns: 1fr; } .card { padding: 25px 20px; } }
+  </style>
+  <script>
+    function updateTopics() {
+      var year = document.getElementById('year').value;
+      var yearNum = parseInt(year.replace('Year ', ''));
+      document.getElementById('year3-topics').style.display = (yearNum >= 1 && yearNum <= 5) ? 'block' : 'none';
+      document.getElementById('year8-topics').style.display = (yearNum >= 6 && yearNum <= 9) ? 'block' : 'none';
+    }
+  </script>
+  </head><body><div class="container">
+  <div class="header">
+    <div class="logo">\ud83e\udde0</div>
+    <h1>QuizBot</h1>
+    <p>AI-powered daily revision quizzes delivered to your inbox</p>
+  </div>
+  <div class="features">
+    <div class="feature"><div class="icon">\ud83c\udfaf</div><div class="text">Personalised<br>Questions</div></div>
+    <div class="feature"><div class="icon">\ud83d\udcca</div><div class="text">Progress<br>Tracking</div></div>
+    <div class="feature"><div class="icon">\ud83d\udce7</div><div class="text">Daily Email<br>Reminders</div></div>
+  </div>
+  <div class="card">
+    <form method="POST" action="/register">
+      <div class="field"><label>\ud83d\udc67 Kid's Name</label><input type="text" name="name" placeholder="e.g. Alex" required></div>
+      <div class="field"><label>\ud83c\udfeb Year Group</label>
+        <select name="year" id="year" onchange="updateTopics()" required>
+          <option value="">Select year...</option>
+          <option value="Year 3">Year 3</option>
+          <option value="Year 4">Year 4</option>
+          <option value="Year 5">Year 5</option>
+          <option value="Year 6">Year 6</option>
+          <option value="Year 7">Year 7</option>
+          <option value="Year 8">Year 8</option>
+          <option value="Year 9">Year 9</option>
+        </select>
+      </div>
+      <div class="field"><label>\ud83d\udce8 Kid's Email (quiz link sent here)</label><input type="email" name="kidEmail" placeholder="kid@email.com" required></div>
+      <div class="field"><label>\ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67 Parent's Email (results sent here)</label><input type="email" name="parentEmail" placeholder="parent@email.com" required></div>
+      <div class="field"><label>\ud83d\udcdd Questions per Quiz</label><input type="number" name="questionsPerQuiz" value="20" min="5" max="40"></div>
+
+      <div class="divider"></div>
+
+      <div class="field"><label>\ud83d\udcc5 How often?</label>
+        <div class="frequency-options">
+          <label class="freq-option"><input type="radio" name="frequency" value="2"> 2x per week</label>
+          <label class="freq-option"><input type="radio" name="frequency" value="3" checked> 3x per week</label>
+          <label class="freq-option"><input type="radio" name="frequency" value="5"> Mon\u2013Fri</label>
+          <label class="freq-option"><input type="radio" name="frequency" value="7"> Every day</label>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field"><label>\ud83d\udcda Topics to Cover</label>
+        <div id="year3-topics" style="display:none;">
+          <div class="subject-header">\ud83d\udcd0 Maths</div>
+          <div class="topics-grid">
+            <label><input type="checkbox" name="topics" value="maths:Addition" checked> Addition</label>
+            <label><input type="checkbox" name="topics" value="maths:Subtraction" checked> Subtraction</label>
+            <label><input type="checkbox" name="topics" value="maths:Multiplication" checked> Multiplication</label>
+            <label><input type="checkbox" name="topics" value="maths:Division" checked> Division</label>
+          </div>
+          <div class="subject-header">\ud83d\udcd6 English</div>
+          <div class="topics-grid">
+            <label><input type="checkbox" name="topics" value="english:Spelling" checked> Spelling</label>
+            <label><input type="checkbox" name="topics" value="english:Punctuation" checked> Punctuation</label>
+            <label><input type="checkbox" name="topics" value="english:Conjunctions" checked> Conjunctions</label>
+            <label><input type="checkbox" name="topics" value="english:Prepositions"> Prepositions</label>
+            <label><input type="checkbox" name="topics" value="english:Adjectives"> Adjectives</label>
+            <label><input type="checkbox" name="topics" value="english:Adverbs"> Adverbs</label>
+            <label><input type="checkbox" name="topics" value="english:Nouns"> Nouns</label>
+            <label><input type="checkbox" name="topics" value="english:Verbs and Tenses"> Verbs & Tenses</label>
+          </div>
+          <div class="subject-header">\ud83d\udd2c Science</div>
+          <div class="topics-grid">
+            <label><input type="checkbox" name="topics" value="science:Plants" checked> Plants</label>
+            <label><input type="checkbox" name="topics" value="science:Animals"> Animals</label>
+            <label><input type="checkbox" name="topics" value="science:Materials"> Materials</label>
+            <label><input type="checkbox" name="topics" value="science:Light"> Light</label>
+          </div>
+        </div>
+
+        <div id="year8-topics" style="display:none;">
+          <div class="subject-header">\ud83d\udcd0 Maths</div>
+          <div class="topics-grid">
+            <label><input type="checkbox" name="topics" value="maths:Algebra" checked> Algebra</label>
+            <label><input type="checkbox" name="topics" value="maths:Bearings" checked> Bearings</label>
+            <label><input type="checkbox" name="topics" value="maths:Compound Shapes" checked> Compound Shapes</label>
+            <label><input type="checkbox" name="topics" value="maths:Circles" checked> Circles</label>
+            <label><input type="checkbox" name="topics" value="maths:Angles" checked> Angles</label>
+            <label><input type="checkbox" name="topics" value="maths:Probability" checked> Probability</label>
+            <label><input type="checkbox" name="topics" value="maths:Percentages" checked> Percentages</label>
+          </div>
+          <div class="subject-header">\ud83d\udd2c Science</div>
+          <div class="topics-grid">
+            <label><input type="checkbox" name="topics" value="science:Forces" checked> Forces</label>
+            <label><input type="checkbox" name="topics" value="science:Electromagnetism" checked> Electromagnetism</label>
+            <label><input type="checkbox" name="topics" value="science:Work Done" checked> Work Done</label>
+            <label><input type="checkbox" name="topics" value="science:Periodic Table" checked> Periodic Table</label>
+            <label><input type="checkbox" name="topics" value="science:Chemical Reactions" checked> Chemical Reactions</label>
+            <label><input type="checkbox" name="topics" value="science:Photosynthesis"> Photosynthesis</label>
+            <label><input type="checkbox" name="topics" value="science:Cells"> Cells</label>
+          </div>
+        </div>
+        <p style="color:#94a3b8;font-size:0.8em;margin-top:8px;font-style:italic;">Select a year group above to see available topics</p>
+      </div>
+
+      <button class="btn" type="submit">\ud83d\ude80 Start Free Daily Quizzes</button>
+    </form>
+    <div class="note">\ud83d\udca1 <strong>How it works:</strong> Your child receives a personalised quiz link via email. After completing it, you get their score and topic breakdown automatically. Questions adapt based on performance!</div>
+  </div></div></body></html>`;
+
+  res.send(html);
+});
+
+app.post("/register", (req, res) => {
+  const { name, year, kidEmail, parentEmail, questionsPerQuiz, topics, frequency } = req.body;
+
+  if (!name || !year || !kidEmail || !parentEmail) {
+    return res.status(400).send("<h1>Missing fields</h1><p>Please fill in all required fields.</p><a href='/register'>Go back</a>");
+  }
+
+  // Parse topics into subjects object
+  const subjects = {};
+  const topicList = Array.isArray(topics) ? topics : (topics ? [topics] : []);
+  for (const t of topicList) {
+    const [subject, topic] = t.split(":");
+    if (!subjects[subject]) subjects[subject] = [];
+    subjects[subject].push(topic);
+  }
+
+  if (Object.keys(subjects).length === 0) {
+    return res.status(400).send("<h1>No topics selected</h1><p>Please select at least one topic.</p><a href='/register'>Go back</a>");
+  }
+
+  // Save to config
+  const config = getConfig();
+  config[name] = {
+    email: kidEmail,
+    parentEmail: parentEmail,
+    year: year,
+    questionsPerQuiz: parseInt(questionsPerQuiz) || 20,
+    frequency: parseInt(frequency) || 5,
+    subjects: subjects
+  };
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+
+  // Success page
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Registration Complete</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: white; border-radius: 16px; padding: 40px; max-width: 500px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+    .emoji { font-size: 4em; margin-bottom: 15px; }
+    h1 { color: #333; margin-bottom: 10px; }
+    p { color: #555; font-size: 1.1em; margin: 10px 0; }
+    .details { background: #f0f4ff; border-radius: 10px; padding: 15px; margin: 20px 0; text-align: left; }
+    .details p { font-size: 0.95em; margin: 5px 0; }
+    .btn { display: inline-block; padding: 12px 30px; background: #11998e; color: white; border-radius: 8px; text-decoration: none; margin-top: 20px; font-size: 1.1em; }
+  </style></head><body>
+  <div class="card">
+    <div class="emoji">🎉</div>
+    <h1>Welcome, ${name}!</h1>
+    <p>You're all set for daily quizzes!</p>
+    <div class="details">
+      <p><strong>Year:</strong> ${year}</p>
+      <p><strong>Quiz email:</strong> ${kidEmail}</p>
+      <p><strong>Parent email:</strong> ${parentEmail}</p>
+      <p><strong>Questions:</strong> ${questionsPerQuiz || 20} per quiz</p>
+      <p><strong>Topics:</strong> ${topicList.map(t => t.split(":")[1]).join(", ")}</p>
+      <p><strong>Frequency:</strong> ${frequency || 5} days per week</p>
+    </div>
+    <p>📧 Daily quiz link will arrive at 11:00 AM</p>
+    <a class="btn" href="/quiz/${name}">▶️ Try Your First Quiz Now</a>
+  </div></body></html>`);
 });
 
 // Backwards compatibility routes
